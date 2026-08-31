@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const API_BASE = "http://127.0.0.1:2200";
+  const API_BASE = "https://mental-health-score-predictor-1-jc6j.onrender.com";
   const HELPLINE_THRESHOLD = 5.5;
 
   const form = document.getElementById("predict-form");
