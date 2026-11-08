@@ -6,7 +6,7 @@
   // API CONFIGURATION
   // ---------------------------------------------------------
 
-  const API_BASE = "http://127.0.0.1:8000";
+  const API_BASE = "https://mental-health-score-predictor-1-jc6j.onrender.com";
   const CHAT_API_BASE = API_BASE;
   const HELPLINE_THRESHOLD = 5.5;
 
