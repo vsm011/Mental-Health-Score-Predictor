@@ -4,7 +4,9 @@ from fastapi import FastAPI
 from pydantic import BaseModel,Field
 from typing import Literal
 from fastapi.middleware.cors import CORSMiddleware
-
+from fastapi import HTTPException
+from chatbot.chat_service import get_chat_response
+from schemas.chat_schema import ChatRequest, ChatResponse
 
 model = joblib.load('Mental_Health_Model.pkl')
 top_countries = ['Other','India','USA','Canada','Australia','UK','Germany','Mexico','Turkey','France']
@@ -62,3 +64,29 @@ def predict(data:StudentData):
 
     prediction = model.predict(input_row)[0]
     return PredictionResponse(predicted_score=round(float(prediction),2))
+
+@app.post("/chat", response_model=ChatResponse)
+def chat(data: ChatRequest):
+
+    try:
+        history = [
+            message.model_dump()
+            for message in data.chat_history
+        ]
+
+        response = get_chat_response(
+            message=data.message,
+            chat_history=history,
+            assessment_context=(
+                data.assessment_context
+                or "No assessment information available."
+            )
+        )
+
+        return ChatResponse(response=response)
+
+    except Exception:
+        raise HTTPException(
+            status_code=502,
+            detail="Chat service is temporarily unavailable. Please try again."
+        )

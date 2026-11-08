@@ -239,6 +239,52 @@
 
 </main>
 
+<!-- CHATBOT SECTION -->
+<section class="chat-section">
+  <div class="chat-header">
+    <div>
+      <span class="eyebrow">AI WELLNESS COMPANION</span>
+      <h2>Talk it out.</h2>
+      <p>Have a conversation about stress, studies, sleep, or everyday well-being.</p>
+    </div>
+    <span class="chat-status">AI ASSISTANT</span>
+  </div>
+
+  <div class="chat-panel">
+    <div class="chat-messages" id="chat-messages" aria-live="polite">
+      <div class="chat-message assistant-message">
+        <div class="message-avatar">AI</div>
+        <div class="message-content">
+          <p>Hi! I'm here to listen. What's on your mind today?</p>
+        </div>
+      </div>
+    </div>
+
+    <label class="chat-context-option">
+      <input type="checkbox" id="share-assessment">
+      Share my latest predicted score with the assistant
+    </label>
+
+    <form id="chat-form" class="chat-input-area">
+      <textarea
+        id="chat-input"
+        placeholder="Type your message..."
+        rows="1"
+        maxlength="2000"
+        required
+      ></textarea>
+      <button type="submit" id="chat-send-btn">
+        Send
+      </button>
+    </form>
+
+    <p class="chat-disclaimer">
+      AI-generated responses are for general informational support only,
+      not a substitute for professional mental health care.
+    </p>
+  </div>
+</section>
+
 <footer class="site-footer">
   <p>Built for informational purposes only — this is not a clinical assessment. If you're struggling, please talk to someone you trust.</p>
 </footer>

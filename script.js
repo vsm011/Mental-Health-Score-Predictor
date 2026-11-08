@@ -1,8 +1,21 @@
+
 (() => {
   "use strict";
 
-  const API_BASE = "https://mental-health-score-predictor-1-jc6j.onrender.com";
+  // ---------------------------------------------------------
+  // API CONFIGURATION
+  // ---------------------------------------------------------
+
+  const API_BASE = "http://127.0.0.1:8000";
+  const CHAT_API_BASE = API_BASE;
   const HELPLINE_THRESHOLD = 5.5;
+
+  let chatHistory = [];
+  let latestPredictedScore = null;
+
+  // ---------------------------------------------------------
+  // PREDICTION ELEMENTS
+  // ---------------------------------------------------------
 
   const form = document.getElementById("predict-form");
   const submitBtn = document.getElementById("submit-btn");
@@ -21,77 +34,109 @@
   const errorCopyEl = document.getElementById("error-copy");
   const helplineCard = document.getElementById("helpline-card");
 
-  const GAUGE_ARC_LENGTH = 314; // approx pi * r(100)
+  const GAUGE_ARC_LENGTH = 314;
 
   // ---------------------------------------------------------
-  // Draw tick marks on both gauges (0..10, every 2 units)
+  // DRAW TICK MARKS ON GAUGES
   // ---------------------------------------------------------
+
   function drawTicks() {
     document.querySelectorAll(".gauge-ticks").forEach((g) => {
       g.innerHTML = "";
+
       const cx = 120, cy = 140, rOuter = 100, rInner = 90;
+
       for (let i = 0; i <= 10; i += 2) {
-        const angle = Math.PI - (i / 10) * Math.PI; // 180deg -> 0deg
+        const angle = Math.PI - (i / 10) * Math.PI;
+
         const x1 = cx + rOuter * Math.cos(angle);
         const y1 = cy - rOuter * Math.sin(angle);
         const x2 = cx + rInner * Math.cos(angle);
         const y2 = cy - rInner * Math.sin(angle);
-        const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+
+        const line = document.createElementNS(
+          "http://www.w3.org/2000/svg",
+          "line"
+        );
+
         line.setAttribute("x1", x1.toFixed(1));
         line.setAttribute("y1", y1.toFixed(1));
         line.setAttribute("x2", x2.toFixed(1));
         line.setAttribute("y2", y2.toFixed(1));
+
         g.appendChild(line);
       }
     });
   }
+
   drawTicks();
 
   // ---------------------------------------------------------
-  // Segmented control (stress_level) wiring
+  // SEGMENTED CONTROL - STRESS LEVEL
   // ---------------------------------------------------------
+
   const segGroup = document.getElementById("stress_level_group");
   const stressHiddenInput = document.getElementById("stress_level");
+
   segGroup.querySelectorAll(".seg-btn").forEach((btn) => {
     btn.addEventListener("click", () => {
-      segGroup.querySelectorAll(".seg-btn").forEach((b) => b.classList.remove("active"));
+      segGroup.querySelectorAll(".seg-btn").forEach((b) => {
+        b.classList.remove("active");
+      });
+
       btn.classList.add("active");
       stressHiddenInput.value = btn.dataset.value;
+
       clearFieldError(stressHiddenInput);
     });
   });
 
   // ---------------------------------------------------------
-  // Field-level error helpers
+  // FIELD-LEVEL ERROR HELPERS
   // ---------------------------------------------------------
+
   function fieldWrapper(input) {
     return input.closest(".field");
   }
 
   function setFieldError(input, message) {
     const wrap = fieldWrapper(input);
+
     if (!wrap) return;
+
     wrap.classList.add("field-error");
+
     const msgEl = wrap.querySelector(".error-msg");
+
     if (msgEl) msgEl.textContent = message;
   }
 
   function clearFieldError(input) {
     const wrap = fieldWrapper(input);
+
     if (!wrap) return;
+
     wrap.classList.remove("field-error");
+
     const msgEl = wrap.querySelector(".error-msg");
+
     if (msgEl) msgEl.textContent = "";
   }
 
   function clearAllErrors() {
-    form.querySelectorAll(".field").forEach((f) => f.classList.remove("field-error"));
-    form.querySelectorAll(".error-msg").forEach((m) => (m.textContent = ""));
+    form.querySelectorAll(".field").forEach((f) => {
+      f.classList.remove("field-error");
+    });
+
+    form.querySelectorAll(".error-msg").forEach((m) => {
+      m.textContent = "";
+    });
   }
 
   // ---------------------------------------------------------
-  // Client-side validation mirroring the StudentData model
+  // CLIENT-SIDE VALIDATION
   // ---------------------------------------------------------
+
   function validate(payload) {
     const errors = [];
 
@@ -107,15 +152,26 @@
     numericChecks.forEach(([key, min, max]) => {
       const input = document.getElementById(key);
       const val = payload[key];
+
       if (val === "" || val === null || Number.isNaN(val)) {
         errors.push([input, "This field is required."]);
       } else if (val < min || val > max) {
-        errors.push([input, `Must be between ${min} and ${max === Infinity ? "0+" : max}.`]);
+        errors.push([
+          input,
+          `Must be between ${min} and ${max === Infinity ? "0+" : max}.`
+        ]);
       }
     });
 
-    ["gender", "country", "academic_level", "most_used_platform", "purpose_of_use"].forEach((key) => {
+    [
+      "gender",
+      "country",
+      "academic_level",
+      "most_used_platform",
+      "purpose_of_use"
+    ].forEach((key) => {
       const input = document.getElementById(key);
+
       if (!payload[key] || String(payload[key]).trim() === "") {
         errors.push([input, "This field is required."]);
       }
@@ -128,14 +184,21 @@
     const study = payload.study_hours;
     const activity = payload.physical_activity_hours;
     const sleep = payload.sleep_hours_per_night;
+
     if (
       Number.isFinite(study) &&
       Number.isFinite(activity) &&
       Number.isFinite(sleep) &&
       study + activity + sleep > 24
     ) {
-      const hoursMsg = "The total hours in a day are 24. Please recheck the values.";
-      ["study_hours", "physical_activity_hours", "sleep_hours_per_night"].forEach((key) => {
+      const hoursMsg =
+        "The total hours in a day are 24. Please recheck the values.";
+
+      [
+        "study_hours",
+        "physical_activity_hours",
+        "sleep_hours_per_night"
+      ].forEach((key) => {
         errors.push([document.getElementById(key), hoursMsg]);
       });
     }
@@ -144,10 +207,12 @@
   }
 
   // ---------------------------------------------------------
-  // Gather form data into the exact StudentData shape
+  // COLLECT FORM DATA
   // ---------------------------------------------------------
+
   function collectPayload() {
     const fd = new FormData(form);
+
     return {
       age: fd.get("age") === "" ? NaN : parseInt(fd.get("age"), 10),
       gender: fd.get("gender") || "",
@@ -155,25 +220,56 @@
       academic_level: fd.get("academic_level") || "",
       most_used_platform: fd.get("most_used_platform") || "",
       purpose_of_use: fd.get("purpose_of_use") || "",
-      avg_daily_usage_hours: fd.get("avg_daily_usage_hours") === "" ? NaN : parseFloat(fd.get("avg_daily_usage_hours")),
-      daily_unlocks: fd.get("daily_unlocks") === "" ? NaN : parseInt(fd.get("daily_unlocks"), 10),
-      study_hours: fd.get("study_hours") === "" ? NaN : parseFloat(fd.get("study_hours")),
-      physical_activity_hours: fd.get("physical_activity_hours") === "" ? NaN : parseFloat(fd.get("physical_activity_hours")),
-      sleep_hours_per_night: fd.get("sleep_hours_per_night") === "" ? NaN : parseFloat(fd.get("sleep_hours_per_night")),
+
+      avg_daily_usage_hours:
+        fd.get("avg_daily_usage_hours") === ""
+          ? NaN
+          : parseFloat(fd.get("avg_daily_usage_hours")),
+
+      daily_unlocks:
+        fd.get("daily_unlocks") === ""
+          ? NaN
+          : parseInt(fd.get("daily_unlocks"), 10),
+
+      study_hours:
+        fd.get("study_hours") === ""
+          ? NaN
+          : parseFloat(fd.get("study_hours")),
+
+      physical_activity_hours:
+        fd.get("physical_activity_hours") === ""
+          ? NaN
+          : parseFloat(fd.get("physical_activity_hours")),
+
+      sleep_hours_per_night:
+        fd.get("sleep_hours_per_night") === ""
+          ? NaN
+          : parseFloat(fd.get("sleep_hours_per_night")),
+
       stress_level: fd.get("stress_level") || "",
     };
   }
 
   // ---------------------------------------------------------
-  // UI state switching
+  // UI STATE SWITCHING
   // ---------------------------------------------------------
+
   function hideHelpline() {
     if (helplineCard) helplineCard.hidden = true;
   }
 
   function showState(name) {
-    [stateIdle, stateLoading, stateResult, stateError].forEach((el) => (el.hidden = true));
-    ({ idle: stateIdle, loading: stateLoading, result: stateResult, error: stateError }[name]).hidden = false;
+    [stateIdle, stateLoading, stateResult, stateError].forEach((el) => {
+      el.hidden = true;
+    });
+
+    ({
+      idle: stateIdle,
+      loading: stateLoading,
+      result: stateResult,
+      error: stateError
+    }[name]).hidden = false;
+
     if (name !== "result") hideHelpline();
   }
 
@@ -182,36 +278,53 @@
     submitBtn.classList.toggle("loading", isSubmitting);
   }
 
+  // ---------------------------------------------------------
+  // SCORE CLASSIFICATION
+  // ---------------------------------------------------------
+
   function bandFor(score) {
     if (score >= 8) {
       return {
         label: "Good",
         tone: "good",
-        context: "Your responses suggest a strong wellbeing baseline. Keep supporting the habits that work for you.",
+        context:
+          "Your responses suggest a strong wellbeing baseline. Keep supporting the habits that work for you.",
       };
     }
+
     if (score >= 6) {
       return {
         label: "Moderate",
         tone: "moderate",
-        context: "Your rhythm looks fairly steady, with some room to recover and reset.",
+        context:
+          "Your rhythm looks fairly steady, with some room to recover and reset.",
       };
     }
+
     if (score >= 4) {
       return {
         label: "Needs Attention",
         tone: "attention",
-        context: "This estimate points to strain that may benefit from extra care, rest, or support.",
+        context:
+          "This estimate points to strain that may benefit from extra care, rest, or support.",
       };
     }
+
     return {
       label: "High Concern",
       tone: "concern",
-      context: "Your responses suggest elevated strain right now. Reaching out for support can make a real difference.",
+      context:
+        "Your responses suggest elevated strain right now. Reaching out for support can make a real difference.",
     };
   }
 
+  // ---------------------------------------------------------
+  // RENDER PREDICTION RESULT
+  // ---------------------------------------------------------
+
   function renderResult(score) {
+    latestPredictedScore = score;
+
     const clamped = Math.max(0, Math.min(10, score));
     const { label, context, tone } = bandFor(clamped);
 
@@ -222,9 +335,12 @@
 
     gaugeFill.style.transition = "none";
     gaugeFill.style.strokeDashoffset = String(GAUGE_ARC_LENGTH);
+
     requestAnimationFrame(() => {
       gaugeFill.style.transition = "";
+
       const offset = GAUGE_ARC_LENGTH * (1 - clamped / 10);
+
       gaugeFill.style.strokeDashoffset = String(offset);
     });
 
@@ -235,42 +351,59 @@
 
   function renderError(label, copy) {
     if (errorLabelEl) errorLabelEl.textContent = label;
+
     errorCopyEl.textContent = copy;
+
     showState("error");
   }
 
   // ---------------------------------------------------------
-  // Parse FastAPI / Pydantic 422 error responses into
-  // field-level messages where possible
+  // SERVER VALIDATION ERRORS
   // ---------------------------------------------------------
+
   function applyServerValidationErrors(detail) {
     if (!Array.isArray(detail)) return false;
+
     let matched = false;
+
     detail.forEach((err) => {
-      const field = Array.isArray(err.loc) ? err.loc[err.loc.length - 1] : null;
+      const field = Array.isArray(err.loc)
+        ? err.loc[err.loc.length - 1]
+        : null;
+
       const input = field ? document.getElementById(field) : null;
-      const target = field === "stress_level" ? stressHiddenInput : input;
+
+      const target =
+        field === "stress_level" ? stressHiddenInput : input;
+
       if (target) {
         setFieldError(target, err.msg || "Invalid value.");
         matched = true;
       }
     });
+
     return matched;
   }
 
   // ---------------------------------------------------------
-  // Submit handler
+  // PREDICTION FORM SUBMIT HANDLER
   // ---------------------------------------------------------
+
   form.addEventListener("submit", async (e) => {
     e.preventDefault();
+
     clearAllErrors();
 
     const payload = collectPayload();
     const clientErrors = validate(payload);
 
     if (clientErrors.length > 0) {
-      clientErrors.forEach(([input, msg]) => input && setFieldError(input, msg));
+      clientErrors.forEach(([input, msg]) => {
+        if (input) setFieldError(input, msg);
+      });
+
       clientErrors[0][0]?.focus?.();
+
       return;
     }
 
@@ -280,27 +413,40 @@
     try {
       const res = await fetch(`${API_BASE}/predict`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json"
+        },
         body: JSON.stringify(payload),
       });
 
       if (res.status === 422) {
         const body = await res.json().catch(() => null);
-        const matched = body && applyServerValidationErrors(body.detail);
+
+        const matched =
+          body && applyServerValidationErrors(body.detail);
+
         renderError(
           "Check your inputs",
           matched
             ? "The API rejected a few fields — details are marked on the form."
             : "The API rejected this submission. Please review your inputs and try again."
         );
+
         return;
       }
 
       if (!res.ok) {
-        let detailMsg = `The API responded with status ${res.status}.`;
+        let detailMsg =
+          `The API responded with status ${res.status}.`;
+
         const body = await res.json().catch(() => null);
-        if (body && typeof body.detail === "string") detailMsg = body.detail;
+
+        if (body && typeof body.detail === "string") {
+          detailMsg = body.detail;
+        }
+
         renderError("Prediction failed", detailMsg);
+
         return;
       }
 
@@ -311,50 +457,224 @@
           "Unexpected response",
           "The API responded, but the score was missing or malformed."
         );
+
         return;
       }
 
       renderResult(data.predicted_score);
+
     } catch (err) {
+      console.error("Prediction error:", err);
+
       renderError(
         "Can't reach the server",
-        `Couldn't connect to ${API_BASE}. Make sure the backend is running (uvicorn main:app --port 2200 --reload) and reachable from this page.`
+        `Couldn't connect to ${API_BASE}. Make sure the backend is running (uvicorn main:app --reload --port 8000) and reachable from this page.`
       );
+
     } finally {
       setSubmitting(false);
     }
   });
 
-  // live-clear errors as the user edits
-  const dailyHoursFields = ["study_hours", "physical_activity_hours", "sleep_hours_per_night"];
+  // ---------------------------------------------------------
+  // LIVE-CLEAR FORM ERRORS
+  // ---------------------------------------------------------
+
+  const dailyHoursFields = [
+    "study_hours",
+    "physical_activity_hours",
+    "sleep_hours_per_night"
+  ];
 
   form.querySelectorAll("input, select").forEach((el) => {
     const clear = () => {
       clearFieldError(el);
+
       if (dailyHoursFields.includes(el.id)) {
-        dailyHoursFields.forEach((id) => clearFieldError(document.getElementById(id)));
+        dailyHoursFields.forEach((id) => {
+          clearFieldError(document.getElementById(id));
+        });
       }
     };
+
     el.addEventListener("input", clear);
     el.addEventListener("change", clear);
   });
 
+  // ---------------------------------------------------------
+  // RESET PREDICTION FORM
+  // ---------------------------------------------------------
+
   function resetApp() {
     form.reset();
-    segGroup.querySelectorAll(".seg-btn").forEach((b) => b.classList.remove("active"));
+
+    segGroup.querySelectorAll(".seg-btn").forEach((b) => {
+      b.classList.remove("active");
+    });
+
     stressHiddenInput.value = "";
+
     clearAllErrors();
+
     scoreNumberEl.textContent = "0.0";
     scoreBandEl.textContent = "—";
     scoreBandEl.className = "score-band";
     scoreContextEl.textContent = "";
+
     if (gaugeFill) {
       gaugeFill.style.transition = "none";
       gaugeFill.style.strokeDashoffset = String(GAUGE_ARC_LENGTH);
     }
+
+    latestPredictedScore = null;
+
     hideHelpline();
     showState("idle");
   }
 
   resetBtn.addEventListener("click", resetApp);
+
+
+  // =========================================================
+  // CHATBOT INTEGRATION
+  // =========================================================
+
+  const chatForm = document.getElementById("chat-form");
+  const chatInput = document.getElementById("chat-input");
+  const chatMessages = document.getElementById("chat-messages");
+  const chatSendBtn = document.getElementById("chat-send-btn");
+  const shareAssessment = document.getElementById("share-assessment");
+
+  // ---------------------------------------------------------
+  // APPEND CHAT MESSAGE
+  // ---------------------------------------------------------
+
+  function appendChatMessage(role, content) {
+    const message = document.createElement("div");
+
+    message.className =
+      `chat-message ${role === "user" ? "user-message" : "assistant-message"}`;
+
+    const avatar = document.createElement("div");
+
+    avatar.className = "message-avatar";
+    avatar.textContent = role === "user" ? "You" : "AI";
+
+    const messageContent = document.createElement("div");
+
+    messageContent.className = "message-content";
+
+    const paragraph = document.createElement("p");
+
+    paragraph.textContent = content;
+
+    messageContent.appendChild(paragraph);
+    message.appendChild(avatar);
+    message.appendChild(messageContent);
+
+    chatMessages.appendChild(message);
+
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+
+    return message;
+  }
+
+  // ---------------------------------------------------------
+  // CHAT FORM SUBMIT HANDLER
+  // ---------------------------------------------------------
+
+  chatForm.addEventListener("submit", async (e) => {
+    e.preventDefault();
+
+    const message = chatInput.value.trim();
+
+    if (!message) return;
+
+    // Display user's message
+    appendChatMessage("user", message);
+
+    chatInput.value = "";
+
+    chatSendBtn.disabled = true;
+    chatSendBtn.textContent = "Sending...";
+
+    // Display loading message
+    const thinkingMessage = appendChatMessage(
+      "assistant",
+      "Thinking..."
+    );
+
+    const thinkingText = thinkingMessage.querySelector("p");
+
+    // Share prediction only when the user explicitly consents
+    let assessmentContext = null;
+
+    if (
+      shareAssessment.checked &&
+      latestPredictedScore !== null
+    ) {
+      assessmentContext =
+        `The user's latest predicted mental health score is ${latestPredictedScore}/10. ` +
+        "This is an ML-based estimate, not a clinical diagnosis.";
+    }
+
+    try {
+      const response = await fetch(`${CHAT_API_BASE}/chat`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          message: message,
+          chat_history: chatHistory.slice(-8),
+          assessment_context: assessmentContext
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error(
+          `Chat API responded with status ${response.status}`
+        );
+      }
+
+      const data = await response.json();
+
+      thinkingText.textContent = data.response;
+
+      // Store conversation history
+      chatHistory.push(
+        { role: "user", content: message },
+        { role: "assistant", content: data.response }
+      );
+
+      // Retain the last eight messages
+      chatHistory = chatHistory.slice(-8);
+
+    } catch (error) {
+      console.error("Chat error:", error);
+
+      thinkingText.textContent =
+        "Sorry, I couldn't connect to the chat service. Please try again.";
+
+    } finally {
+      chatSendBtn.disabled = false;
+      chatSendBtn.textContent = "Send";
+
+      chatInput.focus();
+
+      chatMessages.scrollTop = chatMessages.scrollHeight;
+    }
+  });
+
+  // ---------------------------------------------------------
+  // ENTER TO SEND; SHIFT + ENTER FOR NEW LINE
+  // ---------------------------------------------------------
+
+  chatInput.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      chatForm.requestSubmit();
+    }
+  });
+
 })();
